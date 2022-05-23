@@ -12,11 +12,11 @@ const app = express();
 const url =
   "https://calendar.google.com/calendar/ical/iuuu.de_j8npqqc0km43cnetsb1bkb2gl4%40group.calendar.google.com/private-3fee126cdc740a584924e5f821068b29/basic.ics";
 
-const options = {};
+const range = length => Array.from({ length }, (_, i) => i);
 
 const last = (a) => (a ? a[a.length - 1] : "");
 
-const createHtmlReport = (icalData) => {
+const createListHtmlReport = (icalData) => {
   const bracketsRegex = /\(([^)]+)\)/g;
 
   const nextYear = parseInt(moment().format("YYYY")) + 1;
@@ -94,27 +94,95 @@ const createHtmlReport = (icalData) => {
   `;
 };
 
-app.get("/report.pdf", async (req, res) => {
+
+const createCalendarHtmlReport = (icalData) => {
+  const indexFormat = "YYYY-MM-DD";
+  const borderLine = "1px solid black";
+  const year = 2022;
+  const getWeekday = (day, month) => moment({ year, month, day }).isValid() ? moment({ year, month, day }).format("dd") : "";
+  const getMomentDate = (day, month) => moment({ year, month, day });
+  let eventsByDate = {}
+
+  Object.values(icalData).forEach(event => {
+    if (!event
+      .start) {
+      return;
+    }
+    const index = moment(event.start).format(indexFormat);
+    eventsByDate[index] = (eventsByDate[index] || []).concat([event]);
+  });
+
+  return `
+    <html>
+      <head>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <style>
+          html, body {
+            font-size: 10px;
+          }
+          th, td {
+            font-size: 10px;
+            width: 25px;
+            height: 38px;
+            border-right: ${borderLine};
+            border-bottom: ${borderLine};
+            margin: 0;
+          }
+
+          tr {
+            border-top: ${borderLine};
+          }
+
+        </style>
+      </head>
+    <body>
+    <div>
+      <h1 style="padding: 10px 0; margin: 0;">Kalender ${year}</h1>
+      <table cellspacing="0">
+        <tr>
+          ${range(32).map(day => day !== 0 ? `
+            <th style="height: 20px; border-right: none;">
+              ${day}
+            </th>
+          `: `<th style="border-right: none;"></th>`).join("")}
+        </tr>
+      ${moment.months().map((month, monthKey) => `
+        <tr style="margin: 0;">
+          <td style="border-left: ${borderLine}; background: green; text-align: center; color: white; padding-left: 5px; padding-right: 5px;">${month}</td>
+          ${range(31).map(day => {
+          const weekday = getWeekday(day + 1, monthKey);
+          const events = eventsByDate[getMomentDate(day + 1, monthKey).format(indexFormat)] || [];
+          return `
+            <td style="background: ${weekday === "So" ? "#aaa" : (weekday === "Sa" ? "#ddd" : "#fff")}; vertical-align: top;">
+              <span style="font-size: 7px;">${weekday}</span><br/>
+              ${events.map(event => `<div style="width: 20px; overflow: hidden; white-space: nowrap; font-size: 4px;">${event.summary}</div>`).join("")}
+            </td>
+          `;
+          }).join("")}
+        </tr>
+      `).join("")}
+      </table>
+    </div>
+    </body>
+    </html>
+  `;
+}
+
+
+app.get("/list-report.pdf", async (req, res) => {
   const data = await ical.fromURL(url, {});
 
-  const report = createHtmlReport(data);
+  const report = createListHtmlReport(data);
 
   pdf.create(report, { format: 'A4' }).toStream((err, pdfStream) => {
     if (err) {
-      // handle error and return a error response code
       console.log(err);
       return res.sendStatus(500);
     } else {
-      // send a status code of 200 OK
       res.statusCode = 200;
-
-      // once we are done reading end the response
       pdfStream.on("end", () => {
-        // done reading
         return res.end();
       });
-
-      // pipe the contents of the PDF directly to the response
 
       res.setHeader('Content-disposition', 'inline; filename="Report.pdf"');
       res.setHeader('Content-type', 'application/pdf');
@@ -124,57 +192,52 @@ app.get("/report.pdf", async (req, res) => {
   });
 });
 
+app.get("/calendar-report.pdf", async (req, res) => {
+  const data = await ical.fromURL(url, {});
+
+  const report = createCalendarHtmlReport(data);
+
+  pdf.create(report, { format: 'A4', orientation: "landscape" }).toStream((err, pdfStream) => {
+    if (err) {
+      console.log(err);
+      return res.sendStatus(500);
+    } else {
+      res.statusCode = 200;
+      pdfStream.on("end", () => {
+        return res.end();
+      });
+
+      res.setHeader('Content-disposition', 'inline; filename="Report.pdf"');
+      res.setHeader('Content-type', 'application/pdf');
+
+      pdfStream.pipe(res);
+    }
+  });
+});
+
+
+app.get("/", (req, res) => {
+  res.setHeader("Content-Type", "text/html")
+  res.statusCode = 200;
+  res.status(200).send(`
+    <html>
+    <head>
+    </head>
+    <body style="text-align:center;">
+      <div style="padding: 20px;">
+        <a href="/list-report.pdf">PDF als Liste</a>
+      </div>
+      <div style="padding: 10px;">
+        <a href="/calendar-report.pdf">PDF als Kalender der Jahresübersicht</a>
+      </div>
+    </body>
+    </html>
+  `)
+});
+
 app.listen(port, function () {
   console.log("Example app listening on port " + port + "!");
 });
 
-// http
-//   .createServer((req, res) => {
-//     ical.fromURL(url, options, (err, data) => {
 
-//       if(data) {
-//         if (err) {
-//           res.end(err.message);
-//         }
 
-//         const html = "";
-
-//         pdf.create(html).toStream((err, pdfStream) => {
-//           if (err) {
-//             // handle error and return a error response code
-//             console.log(err)
-//             return res.sendStatus(500)
-//           } else {
-//             // send a status code of 200 OK
-//             res.statusCode = 200
-
-//             // once we are done reading end the response
-//             pdfStream.on('end', () => {
-//               // done reading
-//               return res.end()
-//             })
-
-//             // pipe the contents of the PDF directly to the response
-//             pdfStream.pipe(res)
-//           }
-//         })
-
-//         // jsreport
-//         //   .render({
-//         //     template: {
-//         //       content: createHtmlReport(data),
-//         //       engine: "handlebars",
-//         //       recipe: "phantom-pdf",
-//         //     },
-//         //     data: { name: "jsreport" },
-//         //   })
-//         //   .then((out) => {
-//         //     out.stream.pipe(res);
-//         //   }).catch(err => {
-//         //     console.log(err)
-//         //   })
-//       }
-
-//     });
-//   })
-//   .listen(8005, "127.0.0.1");
