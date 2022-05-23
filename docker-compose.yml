@@ -1,0 +1,9 @@
+version: '2'
+services:
+  pi-calendar-report-service:
+    build: .
+    ports:
+      - "8005:3000"
+    environment:
+      NODE_ENV: production
+    restart: always
