@@ -6,4 +6,5 @@ services:
       - "8005:3000"
     environment:
       NODE_ENV: production
+      OPENSSL_CONF: /etc/ssl/
     restart: always
