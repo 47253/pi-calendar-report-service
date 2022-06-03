@@ -9,8 +9,7 @@ moment.locale("de");
 const port = 3000;
 const app = express();
 
-const url =
-  "https://calendar.google.com/calendar/ical/iuuu.de_j8npqqc0km43cnetsb1bkb2gl4%40group.calendar.google.com/private-3fee126cdc740a584924e5f821068b29/basic.ics";
+const url = "";
 
 const range = length => Array.from({ length }, (_, i) => i);
 

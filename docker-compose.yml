@@ -3,7 +3,7 @@ services:
   pi-calendar-report-service:
     build: .
     ports:
-      - "8005:3000"
+      - "3000:3000"
     environment:
       NODE_ENV: production
       OPENSSL_CONF: /etc/ssl/
